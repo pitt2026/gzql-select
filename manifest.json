@@ -1,0 +1,17 @@
+{
+  "name": "跟庄擒龙 · 短线操作系统",
+  "short_name": "跟庄擒龙",
+  "description": "A股短线跟庄擒龙移动端操作系统：六维共振打分、实时行情、仓位与止损止盈计算、每日流程清单。",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f6f8",
+  "theme_color": "#c0202a",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
