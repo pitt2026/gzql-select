@@ -30,6 +30,8 @@
     quote: null,        // {code, data}
     auto: false,
     timer: null,
+    wlAuto: false,      // 自选股自动刷新
+    wlTimer: null,
     market: 'balance',  // bull / balance / bear
     sc: { main: 0, theme: 0, kline: 0, vol: 0, tick: 0, limit: 0 }, // 0/1/2
     scMutual: false
@@ -523,10 +525,14 @@
     ph += '<button class="btn ghost sm" id="clearChk" style="margin-top:4px">清空今日勾选</button></div>';
 
     var wl = LS.get('gzql_watch', []);
-    var wlHtml = '<div class="card"><h3>自选股</h3><div id="wlList">';
+    var wlHtml = '<div class="card"><h3>自选股</h3>' +
+      '<div class="row" style="margin-bottom:8px">' +
+      '<label class="row" style="cursor:pointer;flex:1"><input type="checkbox" id="wlAutoChk" ' + (state.wlAuto ? 'checked' : '') + ' style="width:18px;height:18px;accent-color:var(--red)"> <span class="muted">自动刷新(10秒)</span></label>' +
+      '<button class="btn ghost sm" id="wlRefreshBtn" style="flex:0 0 84px">↻ 刷新</button></div>' +
+      '<div id="wlList">';
     if (!wl.length) wlHtml += '<div class="empty">暂无自选，去行情页点击「＋自选」添加。</div>';
-    else wl.forEach(function (c) { wlHtml += '<div class="wl" data-c="' + c + '"><div><div class="wn">' + c.slice(2) + '</div><div class="wc">' + c + '</div></div><div class="wp" id="wlp_' + c + '">--</div><button class="del" data-c="' + c + '">删除</button></div>'; });
-    wlHtml += '</div></div>';
+    else wl.forEach(function (c) { wlHtml += '<div class="wl" data-c="' + c + '"><div class="wl-info"><div class="wn" id="wln_' + c + '">' + c.slice(2) + '</div><div class="wc">' + c + '</div></div><div class="wp" id="wlp_' + c + '">--</div><button class="del" data-c="' + c + '">删除</button></div>'; });
+    wlHtml += '</div><div class="muted" id="wlUpdated" style="margin-top:6px"></div></div>';
 
     var notes = LS.get('gzql_notes', '');
     var noteHtml = '<div class="card"><h3>操作笔记</h3><textarea class="input" id="notes" placeholder="记录今日操作、情绪与反思…">' + escapeHtml(notes) + '</textarea>' +
@@ -564,16 +570,17 @@
     });
     var sn = document.getElementById('saveNote');
     if (sn) sn.addEventListener('click', function () { LS.set('gzql_notes', document.getElementById('notes').value); toast('笔记已保存'); });
-    // 刷新自选股价格
-    var wl = LS.get('gzql_watch', []);
-    if (wl.length) window.GTQuote.get(wl).then(function (res) {
-      wl.forEach(function (c) {
-        var el = document.getElementById('wlp_' + c); if (!el) return;
-        var d = res[c];
-        if (d && d.price != null) { var pc = pcls(d.change); el.className = 'wp ' + pc; el.textContent = fmt(d.price) + ' ' + psign(d.changePct) + fmt(d.changePct) + '%'; }
-        else el.textContent = '—';
-      });
+    // 自选股刷新（含自动刷新）
+    var wlAutoChk = document.getElementById('wlAutoChk');
+    if (wlAutoChk) wlAutoChk.addEventListener('change', function () {
+      state.wlAuto = wlAutoChk.checked;
+      if (state.wlAuto) startWlAuto(); else stopWlAuto();
     });
+    var wlRb = document.getElementById('wlRefreshBtn');
+    if (wlRb) wlRb.addEventListener('click', refreshWatch);
+    // 进入页面先拉一次；若已开启自动则启动轮询
+    refreshWatch();
+    if (state.wlAuto) startWlAuto();
   }
 
   function addWatch(code) {
@@ -586,6 +593,28 @@
     var wl = LS.get('gzql_watch', []).filter(function (c) { return c !== code; });
     LS.set('gzql_watch', wl); renderAll(); toast('已删除');
   }
+
+  // 批量刷新自选股价格（就地更新，不重渲染整页）
+  function refreshWatch() {
+    var wl = LS.get('gzql_watch', []);
+    if (!wl.length) return;
+    window.GTQuote.get(wl).then(function (res) {
+      wl.forEach(function (c) {
+        var el = document.getElementById('wlp_' + c);
+        var nEl = document.getElementById('wln_' + c);
+        var d = res[c];
+        if (d && d.price != null) {
+          var pc = pcls(d.change);
+          if (el) { el.className = 'wp ' + pc; el.textContent = fmt(d.price) + ' ' + psign(d.changePct) + fmt(d.changePct) + '%'; }
+          if (nEl && d.name) nEl.textContent = d.name;
+        } else if (el) { el.textContent = '—'; }
+      });
+      var u = document.getElementById('wlUpdated');
+      if (u) u.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    });
+  }
+  function startWlAuto() { stopWlAuto(); refreshWatch(); state.wlTimer = setInterval(refreshWatch, 10000); }
+  function stopWlAuto() { if (state.wlTimer) { clearInterval(state.wlTimer); state.wlTimer = null; } }
 
   /* ---------------- 路由 ---------------- */
   function renderAll() {
@@ -614,6 +643,7 @@
       var tab = t.getAttribute('data-tab');
       if (tab === state.tab) return;
       if (state.auto && tab !== 'quote') stopAuto();
+      if (state.wlAuto && tab !== 'mine') stopWlAuto();
       state.tab = tab; setTabActive(); renderAll();
     });
   });
